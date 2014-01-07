@@ -378,7 +378,8 @@ void setColor(char* searchparam)
 {
   uint16_t textColor;
   
-  tft.fillScreen(ST7735_BLACK);
+  //tft.fillScreen(ST7735_BLACK);
+  tft.fillRect(0,72,128,87,ST7735_BLACK);
   
   struct signal command;
   Serial.write("\nSearching for ");
