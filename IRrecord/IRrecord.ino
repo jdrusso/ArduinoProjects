@@ -92,12 +92,6 @@ struct signal EEPSearch(char* query)
     startingByte = i*16;
     EEPROM.readBlock(startingByte,tempRead);
     
-//    if (temp == 0)
-//    {
-//      Serial.println("Temp is null.");
-//      continue;
-//    }
-    
     memcpy(&resultCommand, &tempRead, 16);
     
     Serial.print("Found something at memory address ");
@@ -112,45 +106,6 @@ struct signal EEPSearch(char* query)
       Serial.println("Match found.");
       return resultCommand;
     }
-    
-    /**startingByte = i*8;
-    Serial.write("Searching byte ");
-    
-    Serial.println(startingByte);
-    
-    
-    //If the first byte is blank, ain't shit to be found. Keep looking.
-    if (EEPROM.read(startingByte) == 0)
-    {
-      Serial.println("Ain't shit here.");
-      continue;
-    }
-    
-    //If execution has gotten here, holy fuck batman, you found a nonzero starting byte!
-    //Let's 'struct a struct.
-    for(int c = 0;c < 8;c++)
-    {
-      //Start populating the temp array, where each position is one byte of what'll become a signal struct
-      Serial.write("Populating temp with byte ");
-      Serial.println(c);
-      temp[c] = EEPROM.read(startingByte+c);
-    }
-    //Holy shit you did it! Now copy the bytes of that char* into the struct #C #nottypesafelanguages #thanksobama
-    memset(&resultCommand, 0, 8);
-    memcpy(&resultCommand, &temp, 8);
-    Serial.write("Found something called ");
-    Serial.println(resultCommand.name);
-    
-    //If the names match, we're set.
-    if (strcmp(resultCommand.name,query) == 0)
-    {
-      Serial.write("Nailed it. Matched search param ");
-      Serial.write(query);
-      Serial.write(" with code ");
-      Serial.println(resultCommand.code, HEX);
-      break;
-    }
-    **/
   }
   
   //Son, it's a glorious time in an Arduino's life when he's searched through EEPROM to find
@@ -225,9 +180,6 @@ void storeCode(decode_results *results)
               memcpy(&commands[i].name,&writename,sizeof(commands[i].name));
               memcpy(&commands[i].code,&results->value,sizeof(commands[i].code));
               memcpy(&commands[i].len,&results->bits,sizeof(commands[i].len));
-              //commands[i].name = writename;
-              //commands[i].code = results->value;
-              //commands[i].len = results->bits;
               
               Serial.write("\nWrote: ");
               Serial.println(writename);
@@ -245,14 +197,10 @@ void storeCode(decode_results *results)
         if(EEPROMwrite)
         {
           struct signal tempCommand;
-          //tempCommand.name = writename;
           strcpy(tempCommand.name,writename);
           tempCommand.code = results->value;
           tempCommand.len = results->bits;
-          //char temp[8];
-          //memset(&temp, 0, 8);
-          //memcpy(&temp, &tempCommand, 8);
-          //Iterate through EEPROM in 8 byte chunks
+          //Iterate through EEPROM in 16 byte chunks
           for(int i = 0;i<64;i++)
           {
             int startingByte = 16*i;
@@ -268,27 +216,6 @@ void storeCode(decode_results *results)
               Serial.print(startingByte);
               Serial.print(" in EEPROM with code ");
               Serial.println(tempCommand.code,HEX);
-              /**for(int c = 0;c<8;c++)
-              {
-               
-               EEPROM.write(startingByte+c, temp[c]);
-               
-               Serial.write("\nWrote byte ");
-               Serial.print(c);
-               Serial.write(" in memory ");
-               Serial.print(startingByte+c);
-               
-               Serial.write("\nByte  : ");
-               Serial.println(temp[c],BIN);
-               Serial.write("Verify: ");
-               Serial.println(EEPROM.read(startingByte+c),BIN);
-               
-               Serial.write("Sizes: ");
-               Serial.print(sizeof(temp[c]),DEC);
-               Serial.write("|");
-               Serial.println(sizeof(EEPROM.read(startingByte+c)),DEC);
-               
-              }**/
               break;
             }
           }
@@ -378,7 +305,6 @@ void setColor(char* searchparam)
 {
   uint16_t textColor;
   
-  //tft.fillScreen(ST7735_BLACK);
   tft.fillRect(0,72,128,87,ST7735_BLACK);
   
   struct signal command;
@@ -431,8 +357,6 @@ void drawText(char *text, uint16_t color) {
 int lastButtonState;
 
 void loop() {
-  
-  //irrecv.resume(); // resume receiver
 
   String tempcontent = "";
   memset(&content,'\0',sizeof(content));
@@ -574,11 +498,6 @@ void loop() {
 
     for(int i = 0; i < 100; i++)
     {
-//      for(int c = 0; c < 3; c++)
-//      {
-//      irsend.sendNEC(commands[c].code, commands[c].len);
-//      Serial.write("Sending: ");
-//      Serial.println(commands[c].name);
       setColor("blue");
       delay(300);
       setColor("green");
@@ -587,7 +506,6 @@ void loop() {
       delay(300);
 //      }
     }
-      //sendCode(lastButtonState == buttonState);
     digitalWrite(STATUS_PIN, LOW);
     delay(50); // Wait a bit between retransmissions
   } 
