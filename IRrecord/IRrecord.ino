@@ -309,9 +309,7 @@ struct signal setColor(char* searchparam)
   tft.fillRect(0,72,128,87,ST7735_BLACK);
   
   Serial.print(F("\nSearching for "));
-  Serial.print(searchparam);
-  Serial.print(F("..."));
-  Serial.println(textColor);
+  Serial.println(searchparam);
   
   struct signal colorcommand = EEPSearch(searchparam);
   
@@ -342,20 +340,12 @@ struct signal setColor(char* searchparam)
   Serial.print(F("First char: "));
   Serial.println(colorcommand.name[0]);
   
-//  tft.setCursor(0, 0);
-//  tft.setTextColor(ST7735_WHITE);
-//  tft.setTextWrap(true);
-//  tft.setTextSize(3);
-//  tft.println("Settinglights to "); //[sic] the no space is for formatting
-//  tft.setTextColor(textColor);
-//  tft.print(command.name);
   drawText("Settinglights to ", ST7735_WHITE, 3);
   drawText(0,72,colorcommand.name,textColor, 3);
   
   Serial.print(F("Sent: "));
   Serial.println(colorcommand.name);
   Serial.println(colorcommand.code, HEX);
-  //delay(3000);
   Serial.println(F("Colorset done"));
   return colorcommand;
 }
@@ -450,14 +440,6 @@ Serial.println("String checks");
     Serial.println("\nEEPREAD Received...");
     Serial.println(searchparam);
     setColor(searchparam);
-//    struct signal command;
-//    command = EEPSearch(searchparam);
-//    
-//    Serial.println("Attempting to send.");
-//    irsend.sendNEC(command.code, command.len);
-//    Serial.write("Sent: ");
-//    Serial.println(command.name);
-//    Serial.println(command.code, HEX);
   }
   
   else if(strcmp(content.substring(0,7).c_str(),"eeprevw") == 0)
@@ -491,12 +473,7 @@ Serial.println("String checks");
     Serial.print(F("Attempting to send: "));
     Serial.println(command.name);
     Serial.println(command.code, HEX);
-    //irsend.sendNEC(command.code, command.len);
     command = setColor(command.name);
-    Serial.print(F("EESent: "));
-    //delay(3000);
-    //Serial.println(command.name);
-    //Serial.println(command.code, HEX);
   }//As soon as it leaves this loop, it crashes the program ???
   
   if(strcmp(content.substring(0,4).c_str(),"send") == 0)
