@@ -61,6 +61,7 @@ char character;
 void setup()
 {
   Serial.begin(9600); 
+  Serial.println("Program starting.");
   irrecv.enableIRIn(); // Start the receiver
   tft.initR(INITR_BLACKTAB);
   tft.fillScreen(ST7735_BLACK);
@@ -104,7 +105,7 @@ struct signal EEPSearch(char* query)
     if (strcmp(resultCommand.name,query) == 0)
     {
       Serial.println("Match found.");
-      return resultCommand;
+      break;
     }
   }
   
@@ -301,26 +302,26 @@ void sendCode(int repeat)
   }
 }
 
-void setColor(char* searchparam)
+struct signal setColor(char* searchparam)
 {
-  uint16_t textColor;
+  uint16_t textColor = ST7735_WHITE;
   
   tft.fillRect(0,72,128,87,ST7735_BLACK);
   
-  struct signal command;
-  Serial.write("\nSearching for ");
-  Serial.write(searchparam);
-  Serial.println("...");
+  Serial.print(F("\nSearching for "));
+  Serial.print(searchparam);
+  Serial.print(F("..."));
+  Serial.println(textColor);
   
-  command = EEPSearch(searchparam);
+  struct signal colorcommand = EEPSearch(searchparam);
   
-  Serial.println("Attempting to send.");
-  irsend.sendNEC(command.code, command.len);
-  Serial.write("Sent: ");
-  Serial.println(command.name);
-  Serial.println(command.code, HEX);
+  Serial.println(F("Attempting to send."));
+  irsend.sendNEC(colorcommand.code, colorcommand.len);
   
-  switch(command.name[0]){
+  Serial.print(F("First char: "));
+  Serial.println(colorcommand.name[0]);
+  
+  switch(colorcommand.name[0]){
     case 'g':
       textColor = ST7735_GREEN;
       break;
@@ -338,30 +339,68 @@ void setColor(char* searchparam)
       break;
   }
   
-  tft.setCursor(0, 0);
-  tft.setTextColor(ST7735_WHITE);
-  tft.setTextWrap(true);
-  tft.setTextSize(3);
-  tft.println("Settinglights to "); //[sic] the no space is for formatting
-  tft.setTextColor(textColor);
-  tft.print(command.name);
+  Serial.print(F("First char: "));
+  Serial.println(colorcommand.name[0]);
+  
+//  tft.setCursor(0, 0);
+//  tft.setTextColor(ST7735_WHITE);
+//  tft.setTextWrap(true);
+//  tft.setTextSize(3);
+//  tft.println("Settinglights to "); //[sic] the no space is for formatting
+//  tft.setTextColor(textColor);
+//  tft.print(command.name);
+  drawText("Settinglights to ", ST7735_WHITE, 3);
+  drawText(0,72,colorcommand.name,textColor, 3);
+  
+  Serial.print(F("Sent: "));
+  Serial.println(colorcommand.name);
+  Serial.println(colorcommand.code, HEX);
+  //delay(3000);
+  Serial.println(F("Colorset done"));
+  return colorcommand;
 }
 
-void drawText(char *text, uint16_t color) {
+void drawText(const char* text, uint16_t color) {
   tft.setCursor(0, 0);
   tft.setTextColor(color);
   tft.setTextWrap(true);
   tft.print(text);
 }
 
+void drawText(const char* text, uint16_t color, const int textsize) {
+  tft.setCursor(0, 0);
+  tft.setTextColor(color);
+  tft.setTextWrap(true);
+  tft.setTextSize(textsize);
+  tft.print(text);
+}
+
+void drawText(int cursorx, int cursory, char *text, uint16_t color) {
+  tft.setCursor(cursorx, cursory);
+  tft.setTextColor(color);
+  tft.setTextWrap(true);
+  tft.print(text);
+}
+
+void drawText(int cursorx, int cursory, char *text, uint16_t color, const int textsize) {
+  tft.setCursor(cursorx, cursory);
+  tft.setTextColor(color);
+  tft.setTextWrap(true);
+  tft.setTextSize(textsize);
+  tft.print(text);
+}
+
 int lastButtonState;
+String tempcontent;
 
 void loop() {
-
-  String tempcontent = "";
+  
+  tempcontent = "";
+  Serial.println("Loop begun.");
+  
   memset(&content,'\0',sizeof(content));
-
-  pendingRead = false;
+  
+  Serial.println("Strings cleared.");
   
   while(Serial.available()) 
   {
@@ -373,7 +412,7 @@ void loop() {
   Serial.write(content.c_str());
 
 
-//Serial.println("String checks");
+Serial.println("String checks");
 
   //Check for read command (Read from memory, display code)
   if(strcmp(content.substring(0,4).c_str(),"read") == 0)
@@ -409,14 +448,16 @@ void loop() {
     char* searchparam = strdup(searchstring.c_str());
     
     Serial.println("\nEEPREAD Received...");
-    struct signal command;    
-    command = EEPSearch(searchparam);
-    
-    Serial.println("Attempting to send.");
-    irsend.sendNEC(command.code, command.len);
-    Serial.write("Sent: ");
-    Serial.println(command.name);
-    Serial.println(command.code, HEX);
+    Serial.println(searchparam);
+    setColor(searchparam);
+//    struct signal command;
+//    command = EEPSearch(searchparam);
+//    
+//    Serial.println("Attempting to send.");
+//    irsend.sendNEC(command.code, command.len);
+//    Serial.write("Sent: ");
+//    Serial.println(command.name);
+//    Serial.println(command.code, HEX);
   }
   
   else if(strcmp(content.substring(0,7).c_str(),"eeprevw") == 0)
@@ -424,10 +465,10 @@ void loop() {
     String searchstring = content.substring(8);
     char* searchparam = strdup(searchstring.c_str());
     
-    Serial.println("\nEEPREVW Received...");
+    Serial.println(F("\nEEPREVW Received..."));
     struct signal command;
     
-    char temparray[12];
+    char temparray[16];
     temparray[0] = EEPROM.read(0);
     temparray[1] = EEPROM.read(1);
     temparray[2] = EEPROM.read(2);
@@ -442,24 +483,30 @@ void loop() {
     temparray[11] = EEPROM.read(11);
     temparray[12] = EEPROM.read(12);
     temparray[13] = EEPROM.read(13);
+    temparray[14] = EEPROM.read(14);
+    temparray[15] = EEPROM.read(15);
     
     memcpy(&command,&temparray,16);
     
-    Serial.println("Attempting to send.");
-    irsend.sendNEC(command.code, command.len);
-    Serial.write("Sent: ");
+    Serial.print(F("Attempting to send: "));
     Serial.println(command.name);
     Serial.println(command.code, HEX);
-  }
+    //irsend.sendNEC(command.code, command.len);
+    command = setColor(command.name);
+    Serial.print(F("EESent: "));
+    //delay(3000);
+    //Serial.println(command.name);
+    //Serial.println(command.code, HEX);
+  }//As soon as it leaves this loop, it crashes the program ???
   
-  else if(strcmp(content.substring(0,4).c_str(),"send") == 0)
+  if(strcmp(content.substring(0,4).c_str(),"send") == 0)
   {
     char* searchparam = strdup(content.substring(5).c_str());
     setColor(searchparam);
   }
 
 
-//Serial.println("Read check");
+Serial.println("Read check");
 
   if (pendingRead)
   {
@@ -483,13 +530,13 @@ void loop() {
 
   // If button pressed, send the code.
   int buttonState = digitalRead(BUTTON_PIN);
-  if (lastButtonState == LOW && buttonState == HIGH) 
-  {
-    Serial.println("Released");
-    irrecv.enableIRIn(); // Re-enable receiver
-  }
+//  if (lastButtonState == LOW && buttonState == HIGH) 
+//  {
+//    Serial.println("Released");
+//    //irrecv.enableIRIn(); // Re-enable receiver
+//  }
 
-//Serial.println("Button state check");
+Serial.println("Button state check");
 
   if (!buttonState) 
   {
@@ -504,24 +551,27 @@ void loop() {
       delay(300);
       setColor("red");
       delay(300);
-//      }
     }
     digitalWrite(STATUS_PIN, LOW);
     delay(50); // Wait a bit between retransmissions
-  } 
-  
-  
-//Serial.println("Decode check");
-
-  
-  if (irrecv.decode(&results)) 
-  {
-    Serial.println("Decoding...");
-    digitalWrite(STATUS_PIN, HIGH);
-    storeCode(&results);
-    irrecv.resume(); // resume receiver
-    digitalWrite(STATUS_PIN, LOW);
   }
+  
+  
+Serial.print("Decode check: ");
+Serial.println(pendingWrite);
+
+//  if(pendingWrite == true){
+//    if (irrecv.decode(&results)) 
+//    {
+//      Serial.println("Decoding...");
+//      digitalWrite(STATUS_PIN, HIGH);
+//      storeCode(&results);
+//      irrecv.resume(); // resume receiver
+//      digitalWrite(STATUS_PIN, LOW);
+//    }
+//  }
   lastButtonState = buttonState;
+  
+//Serial.println("Loop finished.");
 }
 
