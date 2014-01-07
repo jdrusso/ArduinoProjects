@@ -18,8 +18,8 @@
 #include <IRremote.h>
 #include <EEPROMex.h>
 
-int RECV_PIN = 11;
-int BUTTON_PIN = 8;
+int RECV_PIN = 2;
+int BUTTON_PIN = 4;
 int STATUS_PIN = 13;
 
 IRrecv irrecv(RECV_PIN);
