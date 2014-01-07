@@ -15,8 +15,22 @@
  * http://arcfn.com
  */
 
+#define cs   10
+#define dc   9
+#define rst  8  // you can also connect this to the Arduino reset
+
 #include <IRremote.h>
 #include <EEPROMex.h>
+#include <Adafruit_GFX.h>    // Core graphics library
+#include <Adafruit_ST7735.h> // Hardware-specific library
+#include <SPI.h>
+
+#if defined(__SAM3X8E__)
+    #undef __FlashStringHelper::F(string_literal)
+    #define F(string_literal) string_literal
+#endif
+
+Adafruit_ST7735 tft = Adafruit_ST7735(cs, dc, rst);
 
 int RECV_PIN = 2;
 int BUTTON_PIN = 4;
@@ -48,6 +62,8 @@ void setup()
 {
   Serial.begin(9600); 
   irrecv.enableIRIn(); // Start the receiver
+  tft.initR(INITR_BLACKTAB);
+  tft.fillScreen(ST7735_BLACK);
   pinMode(BUTTON_PIN, INPUT);
   pinMode(STATUS_PIN, OUTPUT);
   memset(&commands, 0, 3*sizeof(struct signal));
@@ -360,31 +376,55 @@ void sendCode(int repeat)
 
 void setColor(char* searchparam)
 {
+  uint16_t textColor;
+  
+  tft.fillScreen(ST7735_BLACK);
   
   struct signal command;
   Serial.write("\nSearching for ");
   Serial.write(searchparam);
   Serial.println("...");
-//  command = EEPSearch(color);
-//  irsend.sendNEC(command.code, command.len);
-//  Serial.write("Successfully changed color to ");
-//  Serial.write(command.name);
-//  Serial.println("!");
   
+  command = EEPSearch(searchparam);
   
+  Serial.println("Attempting to send.");
+  irsend.sendNEC(command.code, command.len);
+  Serial.write("Sent: ");
+  Serial.println(command.name);
+  Serial.println(command.code, HEX);
   
-//    String searchstring = content.substring(8);
-//    char* searchparam = strdup(searchstring.c_str());
-//    
-//    Serial.println("\nEEPREAD Received...");
-//    struct signal command;    
-    command = EEPSearch(searchparam);
-    
-    Serial.println("Attempting to send.");
-    irsend.sendNEC(command.code, command.len);
-    Serial.write("Sent: ");
-    Serial.println(command.name);
-    Serial.println(command.code, HEX);
+  switch(command.name[0]){
+    case 'g':
+      textColor = ST7735_GREEN;
+      break;
+    case 'r':
+      textColor = ST7735_RED;
+      break;
+    case 'b':
+      textColor = ST7735_BLUE;
+      break;
+    case 'y':
+      textColor = ST7735_YELLOW;
+      break;
+    default:
+      textColor = ST7735_BLUE;
+      break;
+  }
+  
+  tft.setCursor(0, 0);
+  tft.setTextColor(ST7735_WHITE);
+  tft.setTextWrap(true);
+  tft.setTextSize(3);
+  tft.println("Settinglights to "); //[sic] the no space is for formatting
+  tft.setTextColor(textColor);
+  tft.print(command.name);
+}
+
+void drawText(char *text, uint16_t color) {
+  tft.setCursor(0, 0);
+  tft.setTextColor(color);
+  tft.setTextWrap(true);
+  tft.print(text);
 }
 
 int lastButtonState;
@@ -539,11 +579,11 @@ void loop() {
 //      Serial.write("Sending: ");
 //      Serial.println(commands[c].name);
       setColor("blue");
-      delay(50);
+      delay(300);
       setColor("green");
-      delay(50);
+      delay(300);
       setColor("red");
-      delay(50);
+      delay(300);
 //      }
     }
       //sendCode(lastButtonState == buttonState);
