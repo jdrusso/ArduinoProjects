@@ -6,6 +6,7 @@
 #include <OneWire.h>
 #include <SoftwareSerial.h>
 #include <Servo.h>
+#include <EEPROM.h>
 
 /*****
 KEYPAD
@@ -51,6 +52,8 @@ float temp;
 float currTemp;
 //Fahrenheit
 float desiredTemp = 65;
+//Address in EEPROM
+int desiredTempAddress = 0;
 
 
 /*****
@@ -90,12 +93,13 @@ void setup(){
   setBrightness(127);
   
   s7s.print("INIT");
+  desiredTemp = EEPROM.read(desiredTempAddress);
 }
 
 
 
 //Every loop:
-//Get keypad input, check to see if setpoint has changed
+//x Get keypad input, check to see if setpoint has changed
 //x Check current temperature
 //x See if it's within accceptable range
 //x Display current and desired temperatures
@@ -204,7 +208,7 @@ void displayTemp(){
   char combTempString[4];
   
   //Combine both temps into one long int for printing.
-  //i.e. current 60, desired 68
+  //i.e. current 60, desired 68 = 6068
   int tempCombined = ((int)(currTemp*100)) + ((int)(desiredTemp));
   
   sprintf(combTempString, "%4d", tempCombined);
@@ -300,7 +304,8 @@ void getKeyPress(){
 
 void updateSetpoint(int newTemp){
  
-  desiredTemp = newTemp;  
+  desiredTemp = newTemp;
+  EEPROM.write(0, newTemp);
 }
 
 /*****
