@@ -6,6 +6,7 @@
 #include <SoftwareSerial.h>
 #include <Servo.h>
 #include <EEPROM.h>
+#include <Average.h>
 
 /*****
 KEYPAD
@@ -51,6 +52,10 @@ float temp;
 float currTemp;
 //Fahrenheit
 float desiredTemp = 65;
+//Create averaging array
+float currTempArray[10];
+//Average temperature
+float avgTemp = 0;
 //Address in EEPROM
 int desiredTempAddress = 0;
 
@@ -362,6 +367,7 @@ boolean getTemperature(){
   temp = ( (data[1] << 8) + data[0] )*0.0625;
   
   currTemp = celsiusToFahrenheit(temp);
+  averaging();
   return true;
 }
 
@@ -370,6 +376,23 @@ double celsiusToFahrenheit(float celsius){
   
   double ftemp = ((temp*(9.0/5.0))+32.0);
   return ftemp;
+}
+
+void averaging(){
+  
+  int arrayLen = sizeof(currTempArray)/sizeof(float);
+  
+  for(int i = 0; i < arrayLen; i++){
+    
+    if(currTempArray[i] == 0){
+      
+      currTempArray[i] = currTemp;
+      avgTemp = currTemp;
+      return;
+    }
+  }
+  
+  avgTemp = rollingAverage(currTempArray,10,currTemp);
 }
 
 /*****
