@@ -1,5 +1,4 @@
 //TODO: Break up code by subsystem
-//TODO: Add EEPROM support for storing 
 //TODO: Dim display late at night. Add photoresistor to automatically dim.
 
 #include <Keypad.h>
