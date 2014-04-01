@@ -33,11 +33,6 @@ PIN CONNECTIONS
 const int relayPin = 2;
 const int servoPin = 4;
 const int thermometerPin = 3;
-//const int displayTxPin = 8;
-//const int displayRxPin = 7;
-const int ssPin = 11;
-const int displaySDIPin = 12;
-const int displaySCKPin = 13;
 
 //Matrix Keypad
 byte rowPins[numRows] = {23,22,21,20}; //Rows 0 to 3
@@ -67,8 +62,6 @@ int desiredTempAddress = 0;
 /*****
 DISPLAY
 *****/
-//SoftwareSerial s7s(displayRxPin, displayTxPin);
-//HardwareSerial s7s = HardwareSerial();
 unsigned int counter = 0;
 char tempDisplayString[10];
 
@@ -83,6 +76,10 @@ int servoSet;
 //initializes an instance of the Keypad class
 Keypad myKeypad= Keypad(makeKeymap(keymap), rowPins, colPins, numRows, numCols);
 
+
+long previousMillis = 0;
+
+long interval = 5000;
 
 boolean controlsActive = false;
 boolean controlsEnabled = true;
@@ -100,19 +97,24 @@ void setup(){
   
   //Initialize display
   //clearLCDDisplay();
-  //setBrightness(127);
-  pinMode(ssPin, OUTPUT);
-  digitalWrite(ssPin, HIGH);
+  //setBrightness(127);  
   SPI.begin();
   SPI.setClockDivider(SPI_CLOCK_DIV64);
+  
+  // First reassign pin 13 to the default so that it is not SCK
+  CORE_PIN13_CONFIG = PORT_PCR_MUX(0);
+  // and then reassign pin 14 to SCK
+  CORE_PIN14_CONFIG = PORT_PCR_DSE | PORT_PCR_MUX(2);
   
   clearDisplaySPI();
   setBrightnessSPI(255);
   
+  s7sSendStringSPI("boot");
+  delay(500);
+  clearDisplaySPI();
   
-  //s7s.begin(9600);
-  //s7s.print("INIT");
-  desiredTemp = EEPROM.read(desiredTempAddress);
+  //desiredTemp = EEPROM.read(desiredTempAddress);
+  desiredTemp = 77;
 }
 
 
@@ -127,12 +129,15 @@ void setup(){
 //x IF temperature is too COLD, then turn fan ON, and turn temperature to COOL, and turn on display dot
 void loop(){
   
-  s7sSendStringSPI("-HI-");
+  unsigned long currentMillis = millis();
+  
+  if (currentMillis - previousMillis > interval){
+    previousMillis = currentMillis;
+    getTemperature();
+  }
   
   getKeyPress();
-  
-  getTemperature();
-  
+//  
   displayTemp();
   
   if (controlsEnabled){
@@ -160,7 +165,8 @@ void loop(){
   Serial.print("Servo set at ");
   Serial.println(heatServo.read());
   
-  //s7s.print("poop");
+  Serial.print("Average temp: ");
+  Serial.println(avgTemp);
 }
 
 
@@ -192,80 +198,11 @@ void stopTemp(){
 /*****
 Display Functions
 *****/
-//  Send the clear display command (0x76)
-//  This will clear the display and reset the cursor
-void clearLCDDisplay(){
-  
-  //s7s.write(0x76);  // Clear display command
-}
-
-//  Turn on any, none, or all of the decimals.
-//  The six lowest bits in the decimals parameter sets a decimal 
-//  (or colon, or apostrophe) on or off. A 1 indicates on, 0 off.
-//  [MSB] (X)(X)(Apos)(Colon)(Digit 4)(Digit 3)(Digit2)(Digit1)
-void setDecimals(byte decimals){
-  
-  //s7s.write(0x77);
-  //s7s.write(decimals);
-}
-
-//  Set the displays brightness. Should receive byte with the value
-//  to set the brightness to
-//  dimmest------------->brightest
-//     0--------127--------255
-void setBrightness(byte value){
-  
-  //s7s.write(0x7A);  // Set brightness command byte
-  //s7s.write(value);  // brightness data byte
-}
-
-//Function name slightly misleading. Enables 2nd 
-//digit decimal to show heating controls active
-void displayControlsActive(){
-  
-  if (controlsActive){
-    
-    setDecimals(0b00010010);
-  }
-  if (!controlsActive){
-    
-    setDecimals(0b00010000);
-  }
-}
-
-// This custom function works somewhat like a serial.print.
-//  You can send it an array of chars (string) and it'll print
-//  the first 4 characters in the array.
-void s7sSendStringSPI(String toSend)
-{
-  Serial.println("Writing");
-  digitalWrite(ssPin, LOW);
-  for (int i=0; i<4; i++)
-  {
-    SPI.transfer(toSend[i]);
-  }
-  digitalWrite(ssPin, HIGH);
-}
-
 // Send the clear display command (0x76)
 //  This will clear the display and reset the cursor
 void clearDisplaySPI()
 {
-  digitalWrite(ssPin, LOW);
   SPI.transfer(0x76);  // Clear display command
-  digitalWrite(ssPin, HIGH);
-}
-
-// Set the displays brightness. Should receive byte with the value
-//  to set the brightness to
-//  dimmest------------->brightest
-//     0--------127--------255
-void setBrightnessSPI(byte value)
-{
-  digitalWrite(ssPin, LOW);
-  SPI.transfer(0x7A);  // Set brightness command byte
-  SPI.transfer(value);  // brightness data byte
-  digitalWrite(ssPin, HIGH);
 }
 
 // Turn on any, none, or all of the decimals.
@@ -274,10 +211,43 @@ void setBrightnessSPI(byte value)
 //  [MSB] (X)(X)(Apos)(Colon)(Digit 4)(Digit 3)(Digit2)(Digit1)
 void setDecimalsSPI(byte decimals)
 {
-  digitalWrite(ssPin, LOW);
   SPI.transfer(0x77);
   SPI.transfer(decimals);
-  digitalWrite(ssPin, HIGH);
+}
+
+// Set the displays brightness. Should receive byte with the value
+//  to set the brightness to
+//  dimmest------------->brightest
+//     0--------127--------255
+void setBrightnessSPI(byte value)
+{
+  SPI.transfer(0x7A);  // Set brightness command byte
+  SPI.transfer(value);  // brightness data byte
+}
+
+//Function name slightly misleading. Enables 2nd 
+//digit decimal to show heating controls active
+void displayControlsActive(){
+  
+  if (controlsActive){
+    
+    setDecimalsSPI(0b00010010);
+  }
+  if (!controlsActive){
+    
+    setDecimalsSPI(0b00010000);
+  }
+}
+
+// This custom function works somewhat like a serial.print.
+//  You can send it an array of chars (string) and it'll print
+//  the first 4 characters in the array.
+void s7sSendStringSPI(String toSend)
+{
+  for (int i=0; i<4; i++)
+  {
+    SPI.transfer(toSend[i]);
+  }
 }
 
 //Display current and desired temperatures.
@@ -291,10 +261,10 @@ void displayTemp(){
   
   sprintf(combTempString, "%4d", tempCombined);
   
-  //DEBUGGINGs7s.print(combTempString);
   Serial.print("Combined temp string: |");
   Serial.print(combTempString);
   Serial.println("|");
+  s7sSendStringSPI(combTempString);
   
   //Enable colon and second digit dot as necessary
   //displayControlsActive();
@@ -360,8 +330,8 @@ void getKeyPress(){
         
         //If input number is within 45-75, go for it. If you want a temperature outside of that, go outside
         if(abs(60 - keypadCurrInt) < 15){
-          //DEBUGGING s7s.write('SET');
-          //delay(250);
+          s7sSendStringSPI('SET');
+          delay(250);
           updateSetpoint(keypadCurrInt);
         }
         
@@ -385,6 +355,8 @@ void getKeyPress(){
 
 void updateSetpoint(int newTemp){
  
+  Serial.print("New temperature set to ");
+  Serial.println(newTemp);
   desiredTemp = newTemp;
   EEPROM.write(0, newTemp);
 }
@@ -401,24 +373,26 @@ boolean getTemperature(){
   byte i;
   byte present = 0;
   byte data[12];
-  byte addr[8];
+  //byte addr[8];
+  byte addr[8] = {0x28, 0x6A, 0x78, 0x2C, 0x05, 0x00, 0x00, 0x16};
   
   //find a device
-  if (!ds.search(addr)) {
+  //ds.search(addr);
+  //if (!ds.search(addr)) {
     
-    ds.reset_search();
-    return false;
-  }
+  //  ds.reset_search();
+  //  return false;
+  //}
   
-  if (OneWire::crc8( addr, 7) != addr[7]) {
+  //if (OneWire::crc8( addr, 7) != addr[7]) {
     
-    return false;
-  }
+  //  return false;
+  //}
   
-  if (addr[0] != DS18S20_ID && addr[0] != DS18B20_ID) {
+  //if (addr[0] != DS18S20_ID && addr[0] != DS18B20_ID) {
     
-    return false;
-  }
+  //  return false;
+  //}
   
   ds.reset();
   ds.select(addr);
@@ -467,8 +441,6 @@ void averaging(){
       
       currTempArray[i] = currTemp;
       avgTemp = currTemp;
-      Serial.print("Average temp: ");
-      Serial.println(avgTemp);
       return;
     }
   }
