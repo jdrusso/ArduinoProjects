@@ -3,10 +3,10 @@
 
 #include <Keypad.h>
 #include <OneWire.h>
-#include <SoftwareSerial.h>
 #include <Servo.h>
 #include <EEPROM.h>
 #include <Average.h>
+#include <SPI.h>
 
 /*****
 KEYPAD
@@ -32,9 +32,13 @@ PIN CONNECTIONS
 *****/
 const int relayPin = 2;
 const int servoPin = 4;
-const int thermometerPin = 5;
-const int displayTxPin = 7;
-const int displayRxPin = 8;
+const int thermometerPin = 3;
+//const int displayTxPin = 8;
+//const int displayRxPin = 7;
+const int ssPin = 11;
+const int displaySDIPin = 12;
+const int displaySCKPin = 13;
+
 //Matrix Keypad
 byte rowPins[numRows] = {23,22,21,20}; //Rows 0 to 3
 byte colPins[numCols]= {19,18,17,16}; //Columns 0 to 3
@@ -63,7 +67,9 @@ int desiredTempAddress = 0;
 /*****
 DISPLAY
 *****/
-SoftwareSerial s7s(displayRxPin, displayTxPin);
+//SoftwareSerial s7s(displayRxPin, displayTxPin);
+//HardwareSerial s7s = HardwareSerial();
+unsigned int counter = 0;
 char tempDisplayString[10];
 
 
@@ -72,7 +78,7 @@ SERVO
 *****/
 Servo heatServo;
 int servoPos;
-
+int servoSet;
 
 //initializes an instance of the Keypad class
 Keypad myKeypad= Keypad(makeKeymap(keymap), rowPins, colPins, numRows, numCols);
@@ -93,10 +99,19 @@ void setup(){
   heatServo.attach(servoPin);
   
   //Initialize display
-  clearDisplay();
-  setBrightness(127);
+  //clearLCDDisplay();
+  //setBrightness(127);
+  pinMode(ssPin, OUTPUT);
+  digitalWrite(ssPin, HIGH);
+  SPI.begin();
+  SPI.setClockDivider(SPI_CLOCK_DIV64);
   
-  s7s.print("INIT");
+  clearDisplaySPI();
+  setBrightnessSPI(255);
+  
+  
+  //s7s.begin(9600);
+  //s7s.print("INIT");
   desiredTemp = EEPROM.read(desiredTempAddress);
 }
 
@@ -112,7 +127,11 @@ void setup(){
 //x IF temperature is too COLD, then turn fan ON, and turn temperature to COOL, and turn on display dot
 void loop(){
   
+  s7sSendStringSPI("-HI-");
+  
   getKeyPress();
+  
+  getTemperature();
   
   displayTemp();
   
@@ -121,19 +140,27 @@ void loop(){
     //If current temperature is more than 4 degrees below setpoint, start heating.
     if (currTemp < (desiredTemp - 4)){
       
+      Serial.println("Heating...");
       heatRoom();
     }
     //If current temperature is more than 4 degrees above setpoint, start heating.
     else if (currTemp > (desiredTemp + 4)){
       
+      Serial.println("Cooling...");
       coolRoom();
     }
     //If current temperature is within 2 of desired temperature, disable temperature controls.
     else if (abs(desiredTemp-currTemp) < 1){
       
+      Serial.println("Turning off...");
       stopTemp();
     }
   }
+  
+  Serial.print("Servo set at ");
+  Serial.println(heatServo.read());
+  
+  //s7s.print("poop");
 }
 
 
@@ -167,9 +194,9 @@ Display Functions
 *****/
 //  Send the clear display command (0x76)
 //  This will clear the display and reset the cursor
-void clearDisplay(){
+void clearLCDDisplay(){
   
-  s7s.write(0x76);  // Clear display command
+  //s7s.write(0x76);  // Clear display command
 }
 
 //  Turn on any, none, or all of the decimals.
@@ -178,8 +205,8 @@ void clearDisplay(){
 //  [MSB] (X)(X)(Apos)(Colon)(Digit 4)(Digit 3)(Digit2)(Digit1)
 void setDecimals(byte decimals){
   
-  s7s.write(0x77);
-  s7s.write(decimals);
+  //s7s.write(0x77);
+  //s7s.write(decimals);
 }
 
 //  Set the displays brightness. Should receive byte with the value
@@ -188,8 +215,8 @@ void setDecimals(byte decimals){
 //     0--------127--------255
 void setBrightness(byte value){
   
-  s7s.write(0x7A);  // Set brightness command byte
-  s7s.write(value);  // brightness data byte
+  //s7s.write(0x7A);  // Set brightness command byte
+  //s7s.write(value);  // brightness data byte
 }
 
 //Function name slightly misleading. Enables 2nd 
@@ -206,6 +233,53 @@ void displayControlsActive(){
   }
 }
 
+// This custom function works somewhat like a serial.print.
+//  You can send it an array of chars (string) and it'll print
+//  the first 4 characters in the array.
+void s7sSendStringSPI(String toSend)
+{
+  Serial.println("Writing");
+  digitalWrite(ssPin, LOW);
+  for (int i=0; i<4; i++)
+  {
+    SPI.transfer(toSend[i]);
+  }
+  digitalWrite(ssPin, HIGH);
+}
+
+// Send the clear display command (0x76)
+//  This will clear the display and reset the cursor
+void clearDisplaySPI()
+{
+  digitalWrite(ssPin, LOW);
+  SPI.transfer(0x76);  // Clear display command
+  digitalWrite(ssPin, HIGH);
+}
+
+// Set the displays brightness. Should receive byte with the value
+//  to set the brightness to
+//  dimmest------------->brightest
+//     0--------127--------255
+void setBrightnessSPI(byte value)
+{
+  digitalWrite(ssPin, LOW);
+  SPI.transfer(0x7A);  // Set brightness command byte
+  SPI.transfer(value);  // brightness data byte
+  digitalWrite(ssPin, HIGH);
+}
+
+// Turn on any, none, or all of the decimals.
+//  The six lowest bits in the decimals parameter sets a decimal 
+//  (or colon, or apostrophe) on or off. A 1 indicates on, 0 off.
+//  [MSB] (X)(X)(Apos)(Colon)(Digit 4)(Digit 3)(Digit2)(Digit1)
+void setDecimalsSPI(byte decimals)
+{
+  digitalWrite(ssPin, LOW);
+  SPI.transfer(0x77);
+  SPI.transfer(decimals);
+  digitalWrite(ssPin, HIGH);
+}
+
 //Display current and desired temperatures.
 void displayTemp(){
   
@@ -217,10 +291,13 @@ void displayTemp(){
   
   sprintf(combTempString, "%4d", tempCombined);
   
-  s7s.print(combTempString);
+  //DEBUGGINGs7s.print(combTempString);
+  Serial.print("Combined temp string: |");
+  Serial.print(combTempString);
+  Serial.println("|");
   
   //Enable colon and second digit dot as necessary
-  displayControlsActive();
+  //displayControlsActive();
 }
 
 /*****
@@ -283,13 +360,13 @@ void getKeyPress(){
         
         //If input number is within 45-75, go for it. If you want a temperature outside of that, go outside
         if(abs(60 - keypadCurrInt) < 15){
-          s7s.write('SET');
-          delay(250);
+          //DEBUGGING s7s.write('SET');
+          //delay(250);
           updateSetpoint(keypadCurrInt);
         }
         
         else{
-          s7s.write('NOPE');
+          //DEBUGGING s7s.write('NOPE');
           delay(250);
         }
       }
@@ -350,7 +427,7 @@ boolean getTemperature(){
   ds.write(0x44, 1);
   
   // Wait some time...
-  delay(850);
+  //delay(850);
   present = ds.reset();
   ds.select(addr);
   
@@ -367,6 +444,8 @@ boolean getTemperature(){
   temp = ( (data[1] << 8) + data[0] )*0.0625;
   
   currTemp = celsiusToFahrenheit(temp);
+  Serial.print("Current temp: ");
+  Serial.println(currTemp);
   averaging();
   return true;
 }
@@ -388,6 +467,8 @@ void averaging(){
       
       currTempArray[i] = currTemp;
       avgTemp = currTemp;
+      Serial.print("Average temp: ");
+      Serial.println(avgTemp);
       return;
     }
   }
@@ -423,10 +504,18 @@ Servo Functions
 
 void setServoWarm(){
   
-  heatServo.write(0);
+  if (servoSet != 1){
+    heatServo.write(20);
+  }
+  servoSet = 1;
 }
 
 void setServoCool(){
   
-  heatServo.write(180);
+  if (servoSet != 2){
+    heatServo.write(90);
+  }
+  servoSet = 2;
 }
+
+
